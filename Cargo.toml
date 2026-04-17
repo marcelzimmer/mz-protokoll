@@ -1,0 +1,21 @@
+[package]
+name = "mz-protokoll"
+version = "1.0.0"
+edition = "2021"
+authors = ["Marcel Zimmer"]
+license = "MIT"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
+
+[build-dependencies]
+winresource = "0.1"
+
+[dependencies]
+eframe = "0.31"
+chrono = "0.4"
+rfd = "0.15"
+genpdf = "0.2"
