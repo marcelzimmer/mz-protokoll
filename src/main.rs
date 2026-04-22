@@ -67,6 +67,40 @@ fn omarchy_farben_laden() -> Option<HashMap<String, egui::Color32>> {
     Some(colors)
 }
 
+// sRGB-Kanal [0..=255] → linearer Wert [0..=1]
+fn srgb_zu_linear(kanal: u8) -> f32 {
+    let x = kanal as f32 / 255.0;
+    if x <= 0.04045 { x / 12.92 } else { ((x + 0.055) / 1.055).powf(2.4) }
+}
+
+// Linearer Wert [0..=1] → sRGB-Kanal [0..=255]
+fn linear_zu_srgb(x: f32) -> u8 {
+    let v = if x <= 0.0031308 { x * 12.92 } else { 1.055 * x.powf(1.0 / 2.4) - 0.055 };
+    (v.clamp(0.0, 1.0) * 255.0).round() as u8
+}
+
+/// WCAG-konforme relative Luminanz [0..=1].
+fn luminanz(c: egui::Color32) -> f32 {
+    let [r, g, b, _] = c.to_array();
+    0.2126 * srgb_zu_linear(r) + 0.7152 * srgb_zu_linear(g) + 0.0722 * srgb_zu_linear(b)
+}
+
+/// Linearer Farbmix im sRGB-linearen Raum. t=0 → a, t=1 → b.
+fn mischen(a: egui::Color32, b: egui::Color32, t: f32) -> egui::Color32 {
+    let [ar, ag, ab, _] = a.to_array();
+    let [br, bg, bb, _] = b.to_array();
+    let t = t.clamp(0.0, 1.0);
+    let kanal = |x: u8, y: u8| {
+        linear_zu_srgb(srgb_zu_linear(x) * (1.0 - t) + srgb_zu_linear(y) * t)
+    };
+    egui::Color32::from_rgb(kanal(ar, br), kanal(ag, bg), kanal(ab, bb))
+}
+
+/// true, wenn die Farbe eher hell wirkt [Luminanz > 0.5].
+fn ist_hell(c: egui::Color32) -> bool {
+    luminanz(c) > 0.5
+}
+
 fn main() -> eframe::Result {
     // Auf macOS gepadded Icon verwenden (10% Rand), damit es im Dock
     // gleich groß wirkt wie Standard-Apps. Andere Plattformen nutzen icon.png direkt.
@@ -348,9 +382,9 @@ struct ProtokollApp {
     /// Speichert, welche Notizzeile zuletzt fokussiert war (Index, Cursor-Position).
     /// Wird für die Cursor-Auf/Ab-Navigation zwischen Notizfeldern benötigt.
     notiz_had_focus: Option<(usize, usize)>,
-    /// Textfarbe für Eingabefelder im Omarchy-Theme (aus `color2`).
+    /// Textfarbe für Eingabefelder im Omarchy-Theme [aus `foreground`].
     input_text_color: Option<egui::Color32>,
-    /// Farbe für Beschriftungen/Labels im Omarchy-Theme (aus `color3`).
+    /// Farbe für Beschriftungen/Labels im Omarchy-Theme [fg/bg-Blend].
     label_color: Option<egui::Color32>,
     /// `true` wenn eine Omarchy-Theme-Konfiguration gefunden wurde.
     has_omarchy: bool,
@@ -1900,41 +1934,66 @@ impl eframe::App for ProtokollApp {
                 ctx.set_visuals(visuals);
             }
             Theme::Omarchy => {
-                let mut visuals = egui::Visuals::dark();
                 if let Some(colors) = omarchy_farben_laden() {
-                    // Hintergrund voll deckend (wie Terminal)
-                    if let Some(bg) = colors.get("background") {
-                        visuals.panel_fill = *bg;
-                        visuals.window_fill = *bg;
-                        visuals.extreme_bg_color = *bg;
+                    let bg     = colors.get("background").copied().unwrap_or(egui::Color32::from_rgb(30, 30, 30));
+                    let fg     = colors.get("foreground").copied().unwrap_or(egui::Color32::from_gray(200));
+                    let accent = colors.get("accent")    .copied().unwrap_or(egui::Color32::from_rgb(122, 162, 247));
+
+                    // Light/Dark-Basis nach Hintergrund-Helligkeit wählen.
+                    let mut visuals = if ist_hell(bg) {
+                        egui::Visuals::light()
+                    } else {
+                        egui::Visuals::dark()
+                    };
+
+                    // Flächenfarben direkt aus colors.toml.
+                    visuals.panel_fill       = bg;
+                    visuals.window_fill      = bg;
+                    visuals.extreme_bg_color = bg;
+
+                    // Trennlinien zwischen Bereichen aus fg/bg-Blend ableiten.
+                    // inactive.bg_stroke bleibt auf egui-Default [unsichtbar], damit
+                    // Textfelder und Buttons keinen expliziten Rahmen bekommen.
+                    let trenn = mischen(bg, fg, 0.18);
+                    visuals.widgets.noninteractive.bg_stroke = egui::Stroke::new(1.0, trenn);
+
+                    // Primärtext folgt dem foreground der Theme-Datei.
+                    visuals.widgets.noninteractive.fg_stroke = egui::Stroke::new(1.0, fg);
+
+                    // Interaktive Widgets: Akzent als Strich.
+                    let akzent_strich = egui::Stroke::new(1.0, accent);
+                    visuals.widgets.inactive.fg_stroke = akzent_strich;
+                    visuals.widgets.hovered.fg_stroke  = akzent_strich;
+                    visuals.widgets.active.fg_stroke   = akzent_strich;
+
+                    // Selektion direkt aus colors.toml, sonst Akzent.
+                    visuals.selection.bg_fill = colors
+                        .get("selection_background")
+                        .copied()
+                        .unwrap_or(accent);
+                    if let Some(sel_fg) = colors.get("selection_foreground").copied() {
+                        visuals.selection.stroke = egui::Stroke::new(1.0, sel_fg);
                     }
-                    // Hints → cursor (über noninteractive, wird automatisch abgedunkelt)
-                    if let Some(cursor) = colors.get("cursor") {
-                        visuals.widgets.noninteractive.fg_stroke = egui::Stroke::new(1.0, *cursor);
-                    }
-                    // Buttons → accent
-                    if let Some(accent) = colors.get("accent") {
-                        let stroke = egui::Stroke::new(1.0, *accent);
-                        visuals.widgets.inactive.fg_stroke = stroke;
-                        visuals.widgets.hovered.fg_stroke = stroke;
-                        visuals.widgets.active.fg_stroke = stroke;
-                        visuals.selection.bg_fill = *accent;
-                        visuals.hyperlink_color = *accent;
-                        visuals.widgets.hovered.bg_fill = accent.linear_multiply(0.3);
-                    }
-                    // Beschriftungen/Labels → color3
-                    if let Some(label) = colors.get("color3") {
-                        self.label_color = Some(*label);
-                    }
-                    // Eingegebener Text in Textfeldern → color2
-                    if let Some(text_color) = colors.get("color2") {
-                        self.input_text_color = Some(*text_color);
-                    }
+
+                    visuals.hyperlink_color = accent;
+
+                    // Hover-Fläche dezent mit Akzent tönen [funktioniert für hell und dunkel].
+                    visuals.widgets.hovered.bg_fill = mischen(bg, accent, 0.20);
+
+                    // Eingabefeld-Text: foreground direkt.
+                    self.input_text_color = Some(fg);
+                    // Beschriftungen: fg/bg-Blend, adaptiv [hell-Themes brauchen weniger Blend].
+                    let t_label = if ist_hell(bg) { 0.30 } else { 0.50 };
+                    self.label_color = Some(mischen(fg, bg, t_label));
+
+                    ctx.set_visuals(visuals);
                 } else {
+                    // Fallback, wenn ~/.config/omarchy/current/theme/colors.toml fehlt.
+                    let mut visuals = egui::Visuals::dark();
                     visuals.panel_fill = egui::Color32::from_rgb(30, 30, 30);
                     visuals.window_fill = egui::Color32::from_rgb(30, 30, 30);
+                    ctx.set_visuals(visuals);
                 }
-                ctx.set_visuals(visuals);
             }
         }
 

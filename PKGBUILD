@@ -1,6 +1,6 @@
 # Maintainer: Marcel Zimmer <https://www.marcelzimmer.de>
 pkgname=mz-protokoll
-pkgver=1.0.0
+pkgver=1.0.1
 pkgrel=1
 pkgdesc="Desktop-App zum Erstellen und Exportieren von Meeting-Protokollen (Markdown & PDF)"
 arch=('x86_64')

@@ -4,7 +4,7 @@
 **Web:** [www.marcelzimmer.de](https://www.marcelzimmer.de)<br>
 **X:** [@marcelzimmer](https://x.com/marcelzimmer)<br>
 **GitHub:** [@marcelzimmer](https://github.com/marcelzimmer)<br>
-**Version:** 1.0.0<br>
+**Version:** 1.0.1<br>
 **Sprache:** Rust<br>
 **Lizenz:** MIT
 
@@ -435,16 +435,20 @@ Wird keine Schrift gefunden, erscheint ein Fehlerdialog mit Installationshinweis
 Die Funktion `omarchy_farben_laden` liest TOML-Zeilen der Form `key = "#rrggbb"` ein.
 Verwendete Schlüssel:
 
-| TOML-Schlüssel | Verwendung in der App              |
-|----------------|------------------------------------|
-| `background`   | Fensterhintergrund                 |
-| `cursor`       | Farbe der inaktiven Schriften      |
-| `accent`       | Buttons, Auswahl, Hover-Effekte    |
-| `color3`       | Abschnittsbezeichnungen (Labels)   |
-| `color2`       | Eingabetext in Textfeldern         |
+| TOML-Schlüssel         | Verwendung in der App                            |
+|------------------------|--------------------------------------------------|
+| `background`           | Fensterhintergrund                               |
+| `foreground`           | Eingabetext in Textfeldern, Primärtext           |
+| `accent`               | Buttons, Selektion, Hyperlinks, Fokus-Strich     |
+| `selection_background` | Hintergrund für Textauswahl [Fallback: accent]   |
+| `selection_foreground` | Textfarbe für Textauswahl                        |
+
+Abschnittsbezeichnungen, Trennlinien und Hover-Flächen werden aus einem WCAG-konformen Blend zwischen `foreground` und `background` abgeleitet. Der Basis-Modus [hell/dunkel] folgt automatisch der Luminanz des Hintergrunds.
+
+Damit sieht die App bei jedem aktuellen und zukünftigen Omarchy-Theme sauber aus, ohne dass pro Theme eine eigene Farbdatei nötig ist.
 
 Das `Omarchy`-Theme wird nur im Cycle angeboten, wenn die Konfigurationsdatei
-gefunden wurde (`has_omarchy = true`).
+gefunden wurde [`has_omarchy = true`].
 
 ---
 
@@ -620,4 +624,4 @@ MZ-Protokoll steht unter der **MIT-Lizenz**. Der vollständige Lizenztext befind
 
 ---
 
-*Diese README wurde am 17.04.2026 erstellt und zuletzt am 17.04.2026 aktualisiert (Version 1.0.0).*
+*Diese README wurde am 17.04.2026 erstellt und zuletzt am 22.04.2026 aktualisiert [Version 1.0.1].*
