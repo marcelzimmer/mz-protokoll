@@ -9,9 +9,9 @@
     <key>CFBundleIdentifier</key>
     <string>de.marcelzimmer.mz-protokoll</string>
     <key>CFBundleVersion</key>
-    <string>1.0.0</string>
+    <string>1.0.1</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0.0</string>
+    <string>1.0.1</string>
     <key>CFBundleExecutable</key>
     <string>mz-protokoll</string>
     <key>CFBundleIconFile</key>
